@@ -2,10 +2,11 @@ import pandas as pd
 import json
 import random
 import base64
+import os
 
 # --- CONFIGURATION ---
 # Replace with your actual Google Web App URL from Phase 1
-GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/XXXXX/exec" 
+GOOGLE_SCRIPT_URL = os.environ.get("MY_SECRET_URL", "URL_MANCANTE")
 
 # Load questions from your CSV
 df = pd.read_csv('questions.csv')
