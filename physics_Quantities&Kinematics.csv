@@ -27,5 +27,5 @@ question,correct,wrong1,wrong2,wrong3
 "An object travels half a circle of radius \(R\). What is the magnitude of its displacement?","\(2R\)","\(\pi R\)","\(R\)","\(0\)"
 "A swimmer crosses a river flowing at \(3 \, m/s\) by swimming perpendicular to the current at \(4 \, m/s\). What is the swimmer's speed relative to the ground?","\(5 \, m/s\)","\(7 \, m/s\)","\(1 \, m/s\)","\(\sqrt{7} \, m/s\)"
 "Which derived unit corresponds to the product of Mass and Acceleration?","Newton","Joule","Watt","Pascal"
-"If \(x = kt^3\), what is the acceleration at time \(t\)?","\(6kt\)","\(3kt^2\)","\(k\)","\(6k\)"
+"An object starts from rest and accelerates with constant acceleration \(a = 4 \, m/s^2\). What distance does it cover in \(3 \, s\)?","\(18 \, m\)","\(12 \, m\)","\(36 \, m\)","\(6 \, m\)"
 "A wheel rotates with a frequency of \(2 \, Hz\). What is its period?","\(0.5 \, s\)","\(2 \, s\)","\(0.25 \, s\)","\(4 \pi \, s\)"
