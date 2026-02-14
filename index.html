@@ -1,0 +1,113 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Math Quiz</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; max-width: 800px; margin: 40px auto; padding: 20px; background: #f4f7f6; }
+        .card { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .answer-btn { display: block; width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 4px; background: #fff; cursor: pointer; transition: 0.3s; font-size: 1.1em; }
+        .answer-btn:hover { background: #f0f0f0; }
+        .correct { background: #d4edda !important; border-color: #c3e6cb; }
+        .wrong { background: #f8d7da !important; border-color: #f5c6cb; }
+        #timer { color: #d9534f; font-weight: bold; font-size: 1.2em; float: right; }
+        #score-display { font-weight: bold; color: #2c3e50; }
+        input[type="email"] { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box; }
+        button#start-btn { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div id="email-gate">
+            <h1>Math Challenge</h1>
+            <p>Enter your email to begin the timed assessment.</p>
+            <input type="email" id="user-email" placeholder="student@school.edu">
+            <button id="start-btn" onclick="startQuiz()">Start Quiz</button>
+        </div>
+
+        <div id="quiz-content" style="display:none;">
+            <div id="timer">Time: <span id="time">60</span>s</div>
+            <div id="score-display">Score: <span id="current-score">0</span></div>
+            <hr>
+            <div id="question-container"></div>
+            <button id="next-btn" onclick="nextQuestion()" style="display:none; background:#28a745; color:white; border:none; padding:10px 20px; margin-top:20px; border-radius:4px; cursor:pointer;">Next Question</button>
+        </div>
+        
+        <div id="loading" style="display:none;"><h3>Submitting results to teacher...</h3></div>
+    </div>
+
+    <script>
+        const GOOGLE_URL = "URL_MANCANTE";
+        const questions = [{"question": "Which of the following fractions is the largest?", "answers": [{"text": "\\(13/17\\)", "correct": false}, {"text": "\\(11/14\\)", "correct": false}, {"text": "\\(4/5\\)", "correct": true}, {"text": "\\(7/9\\)", "correct": false}]}, {"question": "For any integer \\(n\\), simplify the following expression: \\(\\frac{2^n + 2^{n+1}}{2^{n-1} - 2^n}\\)", "answers": [{"text": "\\(-3\\)", "correct": false}, {"text": "\\(-6\\)", "correct": true}, {"text": "\\(6\\)", "correct": false}, {"text": "\\(3/2\\)", "correct": false}]}, {"question": "Rationalize the denominator and simplify: \\(\\frac{\\sqrt{3} + \\sqrt{2}}{\\sqrt{3} - \\sqrt{2}}\\)", "answers": [{"text": "\\(5 - 2\\sqrt{6}\\)", "correct": false}, {"text": "\\(1\\)", "correct": false}, {"text": "\\(5 + 2\\sqrt{6}\\)", "correct": true}, {"text": "\\(5\\)", "correct": false}]}, {"question": "What is the sum of the roots of the equation \\(2x^2 - 7x + 3 = 0\\)?", "answers": [{"text": "\\(3/2\\)", "correct": false}, {"text": "\\(7/2\\)", "correct": true}, {"text": "\\(-3/2\\)", "correct": false}, {"text": "\\(-7/2\\)", "correct": false}]}, {"question": "Evaluate the following expression: \\(e^{2 \\ln(3)} + \\log_{10}(0.001)\\)", "answers": [{"text": "\\(12\\)", "correct": false}, {"text": "\\(6\\)", "correct": true}, {"text": "\\(8\\)", "correct": false}, {"text": "\\(3\\)", "correct": false}]}, {"question": "What is the remainder when the polynomial \\(P(x) = 2x^3 - 3x^2 + x - 5\\) is divided by \\((x - 2)\\)?", "answers": [{"text": "\\(-1\\)", "correct": false}, {"text": "\\(1\\)", "correct": true}, {"text": "\\(3\\)", "correct": false}, {"text": "\\(-5\\)", "correct": false}]}, {"question": "Simplify the following algebraic fraction expression (assuming \\(x \\neq 2\\) and \\(x \\neq -2\\)): \\(\\frac{x^2 - 4x + 4}{x^2 - 4} \\div \\frac{x - 2}{x + 2}\\)", "answers": [{"text": "\\(1\\)", "correct": true}, {"text": "\\(x - 2\\)", "correct": false}, {"text": "\\(\\frac{x - 2}{x + 2}\\)", "correct": false}, {"text": "\\(x + 2\\)", "correct": false}]}, {"question": "Let \\(a\\) and \\(b\\) be non-zero real numbers such that \\(a < b\\) and \\(|a| > |b|\\). Which of the following statements MUST be true?", "answers": [{"text": "\\(1/a > 1/b\\)", "correct": false}, {"text": "\\(a + b < 0\\)", "correct": true}, {"text": "\\(a^2 < b^2\\)", "correct": false}, {"text": "\\(ab > 0\\)", "correct": false}]}, {"question": "Evaluate the numerical value of: \\((27/8)^{-2/3} + (1/16)^{-0.75}\\)", "answers": [{"text": "\\(44/9\\)", "correct": false}, {"text": "\\(17/4\\)", "correct": false}, {"text": "\\(76/9\\)", "correct": true}, {"text": "\\(10/3\\)", "correct": false}]}, {"question": "Solve for \\(x\\) in the real number system: \\(\\sqrt{2x + 5} - x = 1\\)", "answers": [{"text": "No real solutions", "correct": false}, {"text": "\\(x = 2\\) and \\(x = -2\\)", "correct": false}, {"text": "\\(x = 2\\) only", "correct": true}, {"text": "\\(x = -2\\) only", "correct": false}]}, {"question": "Find the value of \\(x\\) that satisfies the equation: \\(\\log_2(x) + \\log_2(x - 3) = 2\\)", "answers": [{"text": "\\(x = 4\\)", "correct": true}, {"text": "\\(x = 5\\)", "correct": false}, {"text": "\\(x = 1\\)", "correct": false}, {"text": "\\(x = 4\\) and \\(x = -1\\)", "correct": false}]}, {"question": "Solve the inequality: \\((1/2)^{x^2 - 3x} < 4\\)", "answers": [{"text": "\\(1 < x < 2\\)", "correct": false}, {"text": "\\(-1 < x < 2\\)", "correct": false}, {"text": "\\(x > 2\\)", "correct": false}, {"text": "\\(x < 1\\) or \\(x > 2\\)", "correct": true}]}, {"question": "Determine the domain of the real-valued function \\(f(x) = \\sqrt{\\ln(x^2 - 8)}\\)", "answers": [{"text": "\\(x > 2\\sqrt{2}\\) or \\(x < -2\\sqrt{2}\\)", "correct": false}, {"text": "\\(-3 \\leq x \\leq 3\\)", "correct": false}, {"text": "\\(x \\geq 3\\) or \\(x \\leq -3\\)", "correct": true}, {"text": "\\(x \\geq 9\\)", "correct": false}]}, {"question": "For which values of \\(k\\) does the quadratic equation \\(x^2 - kx + 9 = 0\\) have NO real roots?", "answers": [{"text": "\\(-6 < k < 6\\)", "correct": true}, {"text": "\\(-6 \\leq k \\leq 6\\)", "correct": false}, {"text": "\\(k \\leq -6\\) or \\(k \\geq 6\\)", "correct": false}, {"text": "\\(k < -6\\) or \\(k > 6\\)", "correct": false}]}, {"question": "Find the solution set for the inequality: \\(3(x - 2) - 4(2x + 1) \\leq 5 - x\\)", "answers": [{"text": "\\(x \\leq -15/4\\)", "correct": false}, {"text": "\\(x \\geq 15/4\\)", "correct": false}, {"text": "\\(x \\leq 15/4\\)", "correct": false}, {"text": "\\(x \\geq -15/4\\)", "correct": true}]}, {"question": "Which of the following expressions is equivalent to \\((a+b)^3 - (a-b)^3\\)?", "answers": [{"text": "\\(6a^2b + 2b^3\\)", "correct": true}, {"text": "\\(2a^3\\)", "correct": false}, {"text": "\\(6ab^2 + 2a^3\\)", "correct": false}, {"text": "\\(2b^3\\)", "correct": false}]}, {"question": "If \\(\\log_{10}(x) + \\log_{10}(y) = 3\\) and \\(x = 2y\\), what is the exact value of \\(y\\)? (Assume \\(x > 0, y > 0\\))", "answers": [{"text": "\\(10\\sqrt{5}\\)", "correct": true}, {"text": "\\(100\\)", "correct": false}, {"text": "\\(500\\)", "correct": false}, {"text": "\\(50\\)", "correct": false}]}, {"question": "Simplify the following radical expression: \\(\\sqrt{12} + \\sqrt{27} - \\sqrt{48}\\)", "answers": [{"text": "\\(-\\sqrt{3}\\)", "correct": false}, {"text": "\\(\\sqrt{15}\\)", "correct": false}, {"text": "\\(2\\sqrt{3}\\)", "correct": false}, {"text": "\\(\\sqrt{3}\\)", "correct": true}]}, {"question": "Find the solution set for the inequality: \\(\\frac{x-1}{x+2} \\geq 0\\)", "answers": [{"text": "\\(x \\geq 1\\)", "correct": false}, {"text": "\\(x < -2\\) or \\(x \\geq 1\\)", "correct": true}, {"text": "\\(-2 < x \\leq 1\\)", "correct": false}, {"text": "\\(-2 \\leq x \\leq 1\\)", "correct": false}]}, {"question": "Find the real values of \\(x\\) that solve the equation: \\(3^{2x+1} - 10 \\cdot 3^x + 3 = 0\\)", "answers": [{"text": "\\(x = 3\\) and \\(x = 1/3\\)", "correct": false}, {"text": "\\(x = 0\\) and \\(x = 1\\)", "correct": false}, {"text": "\\(x = 1\\) only", "correct": false}, {"text": "\\(x = 1\\) and \\(x = -1\\)", "correct": true}]}, {"question": "What is the quotient when \\((x^4 - 1)\\) is divided by \\((x - 1)\\)?", "answers": [{"text": "\\(x^3 + x^2 + x + 1\\)", "correct": true}, {"text": "\\(x^3 - x^2 + x - 1\\)", "correct": false}, {"text": "\\(x^2 + 1\\)", "correct": false}, {"text": "\\(x^3 - 1\\)", "correct": false}]}, {"question": "Solve the inequality: \\(\\ln(x - 2) < 0\\)", "answers": [{"text": "\\(0 < x < 3\\)", "correct": false}, {"text": "\\(x > 2\\)", "correct": false}, {"text": "\\(2 < x < 3\\)", "correct": true}, {"text": "\\(x < 3\\)", "correct": false}]}, {"question": "Find the real solution(s) for the equation: \\(\\sqrt{x} = x - 2\\)", "answers": [{"text": "\\(x = 4\\) only", "correct": true}, {"text": "\\(x = 1\\) and \\(x = 4\\)", "correct": false}, {"text": "\\(x = 1\\) only", "correct": false}, {"text": "No real solutions", "correct": false}]}, {"question": "What is the last digit (units digit) of the number \\(2^{50}\\)?", "answers": [{"text": "\\(4\\)", "correct": true}, {"text": "\\(8\\)", "correct": false}, {"text": "\\(2\\)", "correct": false}, {"text": "\\(6\\)", "correct": false}]}, {"question": "Arrange the following numbers from smallest to largest: \\(A = \\sqrt{2}\\), \\(B = 1.41\\), \\(C = 1.414\\), \\(D = 7/5\\)", "answers": [{"text": "\\(A < C < B < D\\)", "correct": false}, {"text": "\\(B < D < C < A\\)", "correct": false}, {"text": "\\(D < B < A < C\\)", "correct": false}, {"text": "\\(D < B < C < A\\)", "correct": true}]}, {"question": "If \\(x + y = 5\\) and \\(xy = 6\\), what is the value of \\(x^2 + y^2\\)?", "answers": [{"text": "\\(13\\)", "correct": true}, {"text": "\\(25\\)", "correct": false}, {"text": "\\(37\\)", "correct": false}, {"text": "\\(11\\)", "correct": false}]}, {"question": "Simplify the following expression for \\(x > 0\\): \\(\\frac{x^{1/2} \\cdot x^{2/3}}{x^{1/6}}\\)", "answers": [{"text": "\\(x^{7/6}\\)", "correct": false}, {"text": "\\(x^{5/6}\\)", "correct": false}, {"text": "\\(x\\)", "correct": true}, {"text": "\\(x^{1/3}\\)", "correct": false}]}, {"question": "For what real values of the parameter \\(m\\) is the inequality \\(x^2 + mx + 1 > 0\\) strictly true for all real numbers \\(x\\)?", "answers": [{"text": "\\(m > 2\\)", "correct": false}, {"text": "For all real \\(m\\)", "correct": false}, {"text": "\\(m < -2\\)", "correct": false}, {"text": "\\(-2 < m < 2\\)", "correct": true}]}, {"question": "Write the following expression as a single logarithm: \\(2\\log(a) - 3\\log(b) + \\frac{1}{2}\\log(c)\\)", "answers": [{"text": "\\(\\log\\left(\\frac{a^2 \\sqrt{c}}{b^3}\\right)\\)", "correct": true}, {"text": "\\(\\log\\left(\\frac{a^2 c}{b^3}\\right)\\)", "correct": false}, {"text": "\\(\\log\\left(a^2 - b^3 + \\sqrt{c}\\right)\\)", "correct": false}, {"text": "\\(\\log\\left(\\frac{2a + c/2}{3b}\\right)\\)", "correct": false}]}, {"question": "If one of the roots of the quadratic equation \\(x^2 - px + 12 = 0\\) is \\(x = 4\\), what is the value of the constant \\(p\\)?", "answers": [{"text": "\\(3\\)", "correct": false}, {"text": "\\(-7\\)", "correct": false}, {"text": "\\(8\\)", "correct": false}, {"text": "\\(7\\)", "correct": true}]}];
+        let currentIdx = 0, score = 0, userEmail = "", timeLeft = 60, userResponses = [];
+
+        function startQuiz() {
+            userEmail = document.getElementById('user-email').value;
+            if(!userEmail.includes('@')) return alert("Valid email required");
+            document.getElementById('email-gate').style.display = 'none';
+            document.getElementById('quiz-content').style.display = 'block';
+            showQuestion();
+            startTimer();
+        }
+
+        function showQuestion() {
+            const q = questions[currentIdx];
+            const container = document.getElementById('question-container');
+            document.getElementById('next-btn').style.display = 'none';
+            
+            container.innerHTML = `<h3>Question ${currentIdx + 1}:</h3><p>${q.question}</p>`;
+            q.answers.forEach(ans => {
+                const btn = document.createElement('button');
+                btn.className = 'answer-btn';
+                btn.innerHTML = ans.text; // Use innerHTML for LaTeX
+                btn.onclick = () => selectAnswer(btn, ans.correct, ans.text, q.question);
+                container.appendChild(btn);
+            });
+            
+            // Tell MathJax to look for new math symbols
+            if (window.MathJax) MathJax.typesetPromise();
+        }
+
+        function selectAnswer(btn, isCorrect, choiceText, questionText) {
+            const allBtns = document.querySelectorAll('.answer-btn');
+            allBtns.forEach(b => b.disabled = true);
+
+            userResponses.push({ question: questionText, choice: choiceText, isCorrect: isCorrect });
+
+            if(isCorrect) { score += 10; btn.classList.add('correct'); }
+            else { score -= 5; btn.classList.add('wrong'); }
+            
+            document.getElementById('current-score').innerText = score;
+            document.getElementById('next-btn').style.display = 'block';
+        }
+
+        function nextQuestion() {
+            currentIdx++;
+            if(currentIdx < questions.length) showQuestion();
+            else finishQuiz();
+        }
+
+        function startTimer() {
+            const timerInt = setInterval(() => {
+                timeLeft--;
+                document.getElementById('time').innerText = timeLeft;
+                if(timeLeft <= 0) { clearInterval(timerInt); finishQuiz(); }
+            }, 1000);
+        }
+
+        async function finishQuiz() {
+            document.getElementById('quiz-content').style.display = 'none';
+            document.getElementById('loading').style.display = 'block';
+
+            const payload = { email: userEmail, score: score, answers: userResponses };
+            await fetch(GOOGLE_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(payload) });
+            
+            alert("Quiz Complete! Your score: " + score);
+            location.reload();
+        }
+    </script>
+</body>
+</html>
