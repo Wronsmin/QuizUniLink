@@ -6,7 +6,7 @@ import os
 
 # --- CONFIGURATION ---
 # Replace with your actual Google Web App URL from Phase 1
-GOOGLE_SCRIPT_URL = os.environ.get("MY_SECRET_URL", "URL_MANCANTE")
+GOOGLE_SCRIPT_URL = os.environ.get("GOOGLE_SCRIPT_URL", "URL_MANCANTE")
 
 # Load questions from your CSV
 df = pd.read_csv('questions.csv')
