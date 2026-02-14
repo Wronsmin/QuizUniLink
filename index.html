@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>IMAT Simulation</title>
+    <title>IMAT Exam Simulator</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
@@ -11,18 +11,16 @@
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; background: #f0f2f5; }
         .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         
-        /* Barra in alto */
+        /* Header & Timer */
         .header-bar { display: flex; justify-content: space-between; margin-bottom: 20px; color: #555; font-weight: bold; font-size: 1.1em; }
         #timer { color: #d9534f; font-family: monospace; font-size: 1.3em; }
         
-        /* Bottoni Risposta */
+        /* Answers */
         .answer-btn { display: block; width: 100%; padding: 15px; margin: 10px 0; border: 2px solid #e0e0e0; border-radius: 8px; background: #fff; cursor: pointer; text-align: left; transition: 0.2s; font-size: 1rem; }
         .answer-btn:hover { border-color: #aaa; background: #f9f9f9; }
-        
-        /* Stato Selezionato */
         .selected { border-color: #007bff; background-color: #e7f1ff; color: #0056b3; font-weight: 500; }
         
-        /* Navigazione */
+        /* Main Navigation (Prev/Next) */
         .nav-container { display: flex; justify-content: space-between; margin-top: 30px; }
         .nav-btn { padding: 10px 25px; border: none; border-radius: 5px; cursor: pointer; font-size: 1rem; }
         #prev-btn { background: #6c757d; color: white; }
@@ -30,6 +28,40 @@
         #next-btn { background: #007bff; color: white; }
         #submit-btn { background: #28a745; color: white; display: none; }
         
+        /* --- NEW: Scrollable Question Bar --- */
+        .nav-scroll { 
+            display: flex; 
+            overflow-x: auto; 
+            gap: 8px; 
+            padding: 15px 5px; 
+            margin-top: 20px; 
+            border-top: 1px solid #eee; 
+            scrollbar-width: thin; /* Firefox */
+        }
+        /* Scrollbar styling for Chrome/Safari */
+        .nav-scroll::-webkit-scrollbar { height: 8px; }
+        .nav-scroll::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+        
+        .nav-box { 
+            flex: 0 0 40px; 
+            height: 40px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            background: #f8f9fa; 
+            border: 1px solid #ddd; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-size: 0.9em; 
+            user-select: none;
+            transition: all 0.2s;
+        }
+        
+        /* States for the squares */
+        .nav-box.answered { background-color: #007bff; color: white; border-color: #0056b3; }
+        .nav-box.current { border: 2px solid #ffc107; box-shadow: 0 0 5px rgba(255, 193, 7, 0.5); transform: scale(1.1); font-weight: bold; }
+        .nav-box:hover { background-color: #e2e6ea; }
+
         /* Loading & Input */
         #loading { display: none; text-align: center; color: #0056b3; }
         input[type="email"] { width: 100%; padding: 12px; margin: 15px 0; border: 1px solid #ddd; border-radius: 4px; }
@@ -41,8 +73,8 @@
     <div class="card">
         <div id="email-gate">
             <h2>IMAT Test Simulator</h2>
-            <p><strong>Regole:</strong> +1.5 Corretta, -0.4 Errata, 0 Saltata.</p>
-            <p><strong>Tempo:</strong> 60 Minuti.</p>
+            <p><strong>Rules:</strong> +1.5 Correct, -0.4 Wrong, 0 Skipped.</p>
+            <p><strong>Time:</strong> 60 Minutes.</p>
             <input type="email" id="user-email" placeholder="student@example.com">
             <button id="start-btn" onclick="startQuiz()">Start Exam</button>
         </div>
@@ -60,55 +92,93 @@
                 <button id="next-btn" class="nav-btn" onclick="changeQuestion(1)">Next</button>
                 <button id="submit-btn" class="nav-btn" onclick="finishQuiz()">Submit Exam</button>
             </div>
+
+            <div id="nav-scroll" class="nav-scroll">
+                </div>
         </div>
 
         <div id="loading">
-            <h3>Invio risultati in corso...</h3>
-            <p>Attendi mentre calcoliamo il punteggio IMAT.</p>
+            <h3>Submitting results...</h3>
+            <p>Calculating IMAT Score...</p>
         </div>
     </div>
 
     <script>
         const GOOGLE_URL = "https://script.google.com/macros/s/AKfycbxmPJxEshf-WLe2fA0Bq4YO6hbj7oR8bh2vguUIuIRzJiM8VdBARyYgVbBhOB1W_wgJ/exec";
-        const questions = [{"question": "Which of the following fractions is the largest?", "answers": [{"text": "\\(13/17\\)", "correct": false}, {"text": "\\(4/5\\)", "correct": true}, {"text": "\\(7/9\\)", "correct": false}, {"text": "\\(11/14\\)", "correct": false}]}, {"question": "For any integer \\(n\\), simplify the following expression: \\(\\frac{2^n + 2^{n+1}}{2^{n-1} - 2^n}\\)", "answers": [{"text": "\\(3/2\\)", "correct": false}, {"text": "\\(-3\\)", "correct": false}, {"text": "\\(6\\)", "correct": false}, {"text": "\\(-6\\)", "correct": true}]}, {"question": "Rationalize the denominator and simplify: \\(\\frac{\\sqrt{3} + \\sqrt{2}}{\\sqrt{3} - \\sqrt{2}}\\)", "answers": [{"text": "\\(5\\)", "correct": false}, {"text": "\\(5 + 2\\sqrt{6}\\)", "correct": true}, {"text": "\\(5 - 2\\sqrt{6}\\)", "correct": false}, {"text": "\\(1\\)", "correct": false}]}, {"question": "What is the sum of the roots of the equation \\(2x^2 - 7x + 3 = 0\\)?", "answers": [{"text": "\\(-3/2\\)", "correct": false}, {"text": "\\(-7/2\\)", "correct": false}, {"text": "\\(3/2\\)", "correct": false}, {"text": "\\(7/2\\)", "correct": true}]}, {"question": "Evaluate the following expression: \\(e^{2 \\ln(3)} + \\log_{10}(0.001)\\)", "answers": [{"text": "\\(3\\)", "correct": false}, {"text": "\\(6\\)", "correct": true}, {"text": "\\(12\\)", "correct": false}, {"text": "\\(8\\)", "correct": false}]}, {"question": "What is the remainder when the polynomial \\(P(x) = 2x^3 - 3x^2 + x - 5\\) is divided by \\((x - 2)\\)?", "answers": [{"text": "\\(-1\\)", "correct": false}, {"text": "\\(-5\\)", "correct": false}, {"text": "\\(3\\)", "correct": false}, {"text": "\\(1\\)", "correct": true}]}, {"question": "Simplify the following algebraic fraction expression (assuming \\(x \\neq 2\\) and \\(x \\neq -2\\)): \\(\\frac{x^2 - 4x + 4}{x^2 - 4} \\div \\frac{x - 2}{x + 2}\\)", "answers": [{"text": "\\(x + 2\\)", "correct": false}, {"text": "\\(x - 2\\)", "correct": false}, {"text": "\\(1\\)", "correct": true}, {"text": "\\(\\frac{x - 2}{x + 2}\\)", "correct": false}]}, {"question": "Let \\(a\\) and \\(b\\) be non-zero real numbers such that \\(a < b\\) and \\(|a| > |b|\\). Which of the following statements MUST be true?", "answers": [{"text": "\\(1/a > 1/b\\)", "correct": false}, {"text": "\\(a^2 < b^2\\)", "correct": false}, {"text": "\\(ab > 0\\)", "correct": false}, {"text": "\\(a + b < 0\\)", "correct": true}]}, {"question": "Evaluate the numerical value of: \\((27/8)^{-2/3} + (1/16)^{-0.75}\\)", "answers": [{"text": "\\(44/9\\)", "correct": false}, {"text": "\\(17/4\\)", "correct": false}, {"text": "\\(76/9\\)", "correct": true}, {"text": "\\(10/3\\)", "correct": false}]}, {"question": "Solve for \\(x\\) in the real number system: \\(\\sqrt{2x + 5} - x = 1\\)", "answers": [{"text": "\\(x = 2\\) only", "correct": true}, {"text": "\\(x = -2\\) only", "correct": false}, {"text": "No real solutions", "correct": false}, {"text": "\\(x = 2\\) and \\(x = -2\\)", "correct": false}]}, {"question": "Find the value of \\(x\\) that satisfies the equation: \\(\\log_2(x) + \\log_2(x - 3) = 2\\)", "answers": [{"text": "\\(x = 4\\) and \\(x = -1\\)", "correct": false}, {"text": "\\(x = 5\\)", "correct": false}, {"text": "\\(x = 4\\)", "correct": true}, {"text": "\\(x = 1\\)", "correct": false}]}, {"question": "Solve the inequality: \\((1/2)^{x^2 - 3x} < 4\\)", "answers": [{"text": "\\(-1 < x < 2\\)", "correct": false}, {"text": "\\(x > 2\\)", "correct": false}, {"text": "\\(1 < x < 2\\)", "correct": false}, {"text": "\\(x < 1\\) or \\(x > 2\\)", "correct": true}]}, {"question": "Determine the domain of the real-valued function \\(f(x) = \\sqrt{\\ln(x^2 - 8)}\\)", "answers": [{"text": "\\(x \\geq 3\\) or \\(x \\leq -3\\)", "correct": true}, {"text": "\\(x \\geq 9\\)", "correct": false}, {"text": "\\(-3 \\leq x \\leq 3\\)", "correct": false}, {"text": "\\(x > 2\\sqrt{2}\\) or \\(x < -2\\sqrt{2}\\)", "correct": false}]}, {"question": "For which values of \\(k\\) does the quadratic equation \\(x^2 - kx + 9 = 0\\) have NO real roots?", "answers": [{"text": "\\(-6 \\leq k \\leq 6\\)", "correct": false}, {"text": "\\(-6 < k < 6\\)", "correct": true}, {"text": "\\(k \\leq -6\\) or \\(k \\geq 6\\)", "correct": false}, {"text": "\\(k < -6\\) or \\(k > 6\\)", "correct": false}]}, {"question": "Find the solution set for the inequality: \\(3(x - 2) - 4(2x + 1) \\leq 5 - x\\)", "answers": [{"text": "\\(x \\leq -15/4\\)", "correct": false}, {"text": "\\(x \\leq 15/4\\)", "correct": false}, {"text": "\\(x \\geq 15/4\\)", "correct": false}, {"text": "\\(x \\geq -15/4\\)", "correct": true}]}, {"question": "Which of the following expressions is equivalent to \\((a+b)^3 - (a-b)^3\\)?", "answers": [{"text": "\\(6a^2b + 2b^3\\)", "correct": true}, {"text": "\\(2a^3\\)", "correct": false}, {"text": "\\(2b^3\\)", "correct": false}, {"text": "\\(6ab^2 + 2a^3\\)", "correct": false}]}, {"question": "If \\(\\log_{10}(x) + \\log_{10}(y) = 3\\) and \\(x = 2y\\), what is the exact value of \\(y\\)? (Assume \\(x > 0, y > 0\\))", "answers": [{"text": "\\(10\\sqrt{5}\\)", "correct": true}, {"text": "\\(100\\)", "correct": false}, {"text": "\\(500\\)", "correct": false}, {"text": "\\(50\\)", "correct": false}]}, {"question": "Simplify the following radical expression: \\(\\sqrt{12} + \\sqrt{27} - \\sqrt{48}\\)", "answers": [{"text": "\\(\\sqrt{15}\\)", "correct": false}, {"text": "\\(\\sqrt{3}\\)", "correct": true}, {"text": "\\(2\\sqrt{3}\\)", "correct": false}, {"text": "\\(-\\sqrt{3}\\)", "correct": false}]}, {"question": "Find the solution set for the inequality: \\(\\frac{x-1}{x+2} \\geq 0\\)", "answers": [{"text": "\\(-2 < x \\leq 1\\)", "correct": false}, {"text": "\\(x \\geq 1\\)", "correct": false}, {"text": "\\(-2 \\leq x \\leq 1\\)", "correct": false}, {"text": "\\(x < -2\\) or \\(x \\geq 1\\)", "correct": true}]}, {"question": "Find the real values of \\(x\\) that solve the equation: \\(3^{2x+1} - 10 \\cdot 3^x + 3 = 0\\)", "answers": [{"text": "\\(x = 1\\) only", "correct": false}, {"text": "\\(x = 1\\) and \\(x = -1\\)", "correct": true}, {"text": "\\(x = 0\\) and \\(x = 1\\)", "correct": false}, {"text": "\\(x = 3\\) and \\(x = 1/3\\)", "correct": false}]}, {"question": "What is the quotient when \\((x^4 - 1)\\) is divided by \\((x - 1)\\)?", "answers": [{"text": "\\(x^3 - x^2 + x - 1\\)", "correct": false}, {"text": "\\(x^3 + x^2 + x + 1\\)", "correct": true}, {"text": "\\(x^3 - 1\\)", "correct": false}, {"text": "\\(x^2 + 1\\)", "correct": false}]}, {"question": "Solve the inequality: \\(\\ln(x - 2) < 0\\)", "answers": [{"text": "\\(0 < x < 3\\)", "correct": false}, {"text": "\\(2 < x < 3\\)", "correct": true}, {"text": "\\(x < 3\\)", "correct": false}, {"text": "\\(x > 2\\)", "correct": false}]}, {"question": "Find the real solution(s) for the equation: \\(\\sqrt{x} = x - 2\\)", "answers": [{"text": "\\(x = 1\\) only", "correct": false}, {"text": "\\(x = 1\\) and \\(x = 4\\)", "correct": false}, {"text": "No real solutions", "correct": false}, {"text": "\\(x = 4\\) only", "correct": true}]}, {"question": "What is the last digit (units digit) of the number \\(2^{50}\\)?", "answers": [{"text": "\\(6\\)", "correct": false}, {"text": "\\(8\\)", "correct": false}, {"text": "\\(2\\)", "correct": false}, {"text": "\\(4\\)", "correct": true}]}, {"question": "Arrange the following numbers from smallest to largest: \\(A = \\sqrt{2}\\), \\(B = 1.41\\), \\(C = 1.414\\), \\(D = 7/5\\)", "answers": [{"text": "\\(A < C < B < D\\)", "correct": false}, {"text": "\\(D < B < C < A\\)", "correct": true}, {"text": "\\(B < D < C < A\\)", "correct": false}, {"text": "\\(D < B < A < C\\)", "correct": false}]}, {"question": "If \\(x + y = 5\\) and \\(xy = 6\\), what is the value of \\(x^2 + y^2\\)?", "answers": [{"text": "\\(13\\)", "correct": true}, {"text": "\\(11\\)", "correct": false}, {"text": "\\(37\\)", "correct": false}, {"text": "\\(25\\)", "correct": false}]}, {"question": "Simplify the following expression for \\(x > 0\\): \\(\\frac{x^{1/2} \\cdot x^{2/3}}{x^{1/6}}\\)", "answers": [{"text": "\\(x^{1/3}\\)", "correct": false}, {"text": "\\(x^{7/6}\\)", "correct": false}, {"text": "\\(x\\)", "correct": true}, {"text": "\\(x^{5/6}\\)", "correct": false}]}, {"question": "For what real values of the parameter \\(m\\) is the inequality \\(x^2 + mx + 1 > 0\\) strictly true for all real numbers \\(x\\)?", "answers": [{"text": "\\(m < -2\\)", "correct": false}, {"text": "\\(m > 2\\)", "correct": false}, {"text": "For all real \\(m\\)", "correct": false}, {"text": "\\(-2 < m < 2\\)", "correct": true}]}, {"question": "Write the following expression as a single logarithm: \\(2\\log(a) - 3\\log(b) + \\frac{1}{2}\\log(c)\\)", "answers": [{"text": "\\(\\log\\left(\\frac{2a + c/2}{3b}\\right)\\)", "correct": false}, {"text": "\\(\\log\\left(\\frac{a^2 \\sqrt{c}}{b^3}\\right)\\)", "correct": true}, {"text": "\\(\\log\\left(a^2 - b^3 + \\sqrt{c}\\right)\\)", "correct": false}, {"text": "\\(\\log\\left(\\frac{a^2 c}{b^3}\\right)\\)", "correct": false}]}, {"question": "If one of the roots of the quadratic equation \\(x^2 - px + 12 = 0\\) is \\(x = 4\\), what is the value of the constant \\(p\\)?", "answers": [{"text": "\\(7\\)", "correct": true}, {"text": "\\(-7\\)", "correct": false}, {"text": "\\(8\\)", "correct": false}, {"text": "\\(3\\)", "correct": false}]}];
+        const questions = [{"question": "Which of the following fractions is the largest?", "answers": [{"text": "\\(7/9\\)", "correct": false}, {"text": "\\(11/14\\)", "correct": false}, {"text": "\\(13/17\\)", "correct": false}, {"text": "\\(4/5\\)", "correct": true}]}, {"question": "For any integer \\(n\\), simplify the following expression: \\(\\frac{2^n + 2^{n+1}}{2^{n-1} - 2^n}\\)", "answers": [{"text": "\\(3/2\\)", "correct": false}, {"text": "\\(-6\\)", "correct": true}, {"text": "\\(-3\\)", "correct": false}, {"text": "\\(6\\)", "correct": false}]}, {"question": "Rationalize the denominator and simplify: \\(\\frac{\\sqrt{3} + \\sqrt{2}}{\\sqrt{3} - \\sqrt{2}}\\)", "answers": [{"text": "\\(5\\)", "correct": false}, {"text": "\\(5 + 2\\sqrt{6}\\)", "correct": true}, {"text": "\\(1\\)", "correct": false}, {"text": "\\(5 - 2\\sqrt{6}\\)", "correct": false}]}, {"question": "What is the sum of the roots of the equation \\(2x^2 - 7x + 3 = 0\\)?", "answers": [{"text": "\\(3/2\\)", "correct": false}, {"text": "\\(-3/2\\)", "correct": false}, {"text": "\\(-7/2\\)", "correct": false}, {"text": "\\(7/2\\)", "correct": true}]}, {"question": "Evaluate the following expression: \\(e^{2 \\ln(3)} + \\log_{10}(0.001)\\)", "answers": [{"text": "\\(8\\)", "correct": false}, {"text": "\\(3\\)", "correct": false}, {"text": "\\(12\\)", "correct": false}, {"text": "\\(6\\)", "correct": true}]}, {"question": "What is the remainder when the polynomial \\(P(x) = 2x^3 - 3x^2 + x - 5\\) is divided by \\((x - 2)\\)?", "answers": [{"text": "\\(-1\\)", "correct": false}, {"text": "\\(-5\\)", "correct": false}, {"text": "\\(1\\)", "correct": true}, {"text": "\\(3\\)", "correct": false}]}, {"question": "Simplify the following algebraic fraction expression (assuming \\(x \\neq 2\\) and \\(x \\neq -2\\)): \\(\\frac{x^2 - 4x + 4}{x^2 - 4} \\div \\frac{x - 2}{x + 2}\\)", "answers": [{"text": "\\(\\frac{x - 2}{x + 2}\\)", "correct": false}, {"text": "\\(x + 2\\)", "correct": false}, {"text": "\\(x - 2\\)", "correct": false}, {"text": "\\(1\\)", "correct": true}]}, {"question": "Let \\(a\\) and \\(b\\) be non-zero real numbers such that \\(a < b\\) and \\(|a| > |b|\\). Which of the following statements MUST be true?", "answers": [{"text": "\\(1/a > 1/b\\)", "correct": false}, {"text": "\\(a^2 < b^2\\)", "correct": false}, {"text": "\\(ab > 0\\)", "correct": false}, {"text": "\\(a + b < 0\\)", "correct": true}]}, {"question": "Evaluate the numerical value of: \\((27/8)^{-2/3} + (1/16)^{-0.75}\\)", "answers": [{"text": "\\(17/4\\)", "correct": false}, {"text": "\\(44/9\\)", "correct": false}, {"text": "\\(76/9\\)", "correct": true}, {"text": "\\(10/3\\)", "correct": false}]}, {"question": "Solve for \\(x\\) in the real number system: \\(\\sqrt{2x + 5} - x = 1\\)", "answers": [{"text": "\\(x = 2\\) and \\(x = -2\\)", "correct": false}, {"text": "\\(x = -2\\) only", "correct": false}, {"text": "No real solutions", "correct": false}, {"text": "\\(x = 2\\) only", "correct": true}]}, {"question": "Find the value of \\(x\\) that satisfies the equation: \\(\\log_2(x) + \\log_2(x - 3) = 2\\)", "answers": [{"text": "\\(x = 1\\)", "correct": false}, {"text": "\\(x = 5\\)", "correct": false}, {"text": "\\(x = 4\\) and \\(x = -1\\)", "correct": false}, {"text": "\\(x = 4\\)", "correct": true}]}, {"question": "Solve the inequality: \\((1/2)^{x^2 - 3x} < 4\\)", "answers": [{"text": "\\(x > 2\\)", "correct": false}, {"text": "\\(-1 < x < 2\\)", "correct": false}, {"text": "\\(x < 1\\) or \\(x > 2\\)", "correct": true}, {"text": "\\(1 < x < 2\\)", "correct": false}]}, {"question": "Determine the domain of the real-valued function \\(f(x) = \\sqrt{\\ln(x^2 - 8)}\\)", "answers": [{"text": "\\(x \\geq 3\\) or \\(x \\leq -3\\)", "correct": true}, {"text": "\\(x > 2\\sqrt{2}\\) or \\(x < -2\\sqrt{2}\\)", "correct": false}, {"text": "\\(x \\geq 9\\)", "correct": false}, {"text": "\\(-3 \\leq x \\leq 3\\)", "correct": false}]}, {"question": "For which values of \\(k\\) does the quadratic equation \\(x^2 - kx + 9 = 0\\) have NO real roots?", "answers": [{"text": "\\(k \\leq -6\\) or \\(k \\geq 6\\)", "correct": false}, {"text": "\\(-6 \\leq k \\leq 6\\)", "correct": false}, {"text": "\\(k < -6\\) or \\(k > 6\\)", "correct": false}, {"text": "\\(-6 < k < 6\\)", "correct": true}]}, {"question": "Find the solution set for the inequality: \\(3(x - 2) - 4(2x + 1) \\leq 5 - x\\)", "answers": [{"text": "\\(x \\geq -15/4\\)", "correct": true}, {"text": "\\(x \\leq 15/4\\)", "correct": false}, {"text": "\\(x \\leq -15/4\\)", "correct": false}, {"text": "\\(x \\geq 15/4\\)", "correct": false}]}, {"question": "Which of the following expressions is equivalent to \\((a+b)^3 - (a-b)^3\\)?", "answers": [{"text": "\\(2b^3\\)", "correct": false}, {"text": "\\(6ab^2 + 2a^3\\)", "correct": false}, {"text": "\\(2a^3\\)", "correct": false}, {"text": "\\(6a^2b + 2b^3\\)", "correct": true}]}, {"question": "If \\(\\log_{10}(x) + \\log_{10}(y) = 3\\) and \\(x = 2y\\), what is the exact value of \\(y\\)? (Assume \\(x > 0, y > 0\\))", "answers": [{"text": "\\(500\\)", "correct": false}, {"text": "\\(50\\)", "correct": false}, {"text": "\\(10\\sqrt{5}\\)", "correct": true}, {"text": "\\(100\\)", "correct": false}]}, {"question": "Simplify the following radical expression: \\(\\sqrt{12} + \\sqrt{27} - \\sqrt{48}\\)", "answers": [{"text": "\\(\\sqrt{3}\\)", "correct": true}, {"text": "\\(\\sqrt{15}\\)", "correct": false}, {"text": "\\(-\\sqrt{3}\\)", "correct": false}, {"text": "\\(2\\sqrt{3}\\)", "correct": false}]}, {"question": "Find the solution set for the inequality: \\(\\frac{x-1}{x+2} \\geq 0\\)", "answers": [{"text": "\\(-2 < x \\leq 1\\)", "correct": false}, {"text": "\\(x < -2\\) or \\(x \\geq 1\\)", "correct": true}, {"text": "\\(-2 \\leq x \\leq 1\\)", "correct": false}, {"text": "\\(x \\geq 1\\)", "correct": false}]}, {"question": "Find the real values of \\(x\\) that solve the equation: \\(3^{2x+1} - 10 \\cdot 3^x + 3 = 0\\)", "answers": [{"text": "\\(x = 1\\) only", "correct": false}, {"text": "\\(x = 0\\) and \\(x = 1\\)", "correct": false}, {"text": "\\(x = 1\\) and \\(x = -1\\)", "correct": true}, {"text": "\\(x = 3\\) and \\(x = 1/3\\)", "correct": false}]}, {"question": "What is the quotient when \\((x^4 - 1)\\) is divided by \\((x - 1)\\)?", "answers": [{"text": "\\(x^2 + 1\\)", "correct": false}, {"text": "\\(x^3 + x^2 + x + 1\\)", "correct": true}, {"text": "\\(x^3 - 1\\)", "correct": false}, {"text": "\\(x^3 - x^2 + x - 1\\)", "correct": false}]}, {"question": "Solve the inequality: \\(\\ln(x - 2) < 0\\)", "answers": [{"text": "\\(2 < x < 3\\)", "correct": true}, {"text": "\\(0 < x < 3\\)", "correct": false}, {"text": "\\(x < 3\\)", "correct": false}, {"text": "\\(x > 2\\)", "correct": false}]}, {"question": "Find the real solution(s) for the equation: \\(\\sqrt{x} = x - 2\\)", "answers": [{"text": "No real solutions", "correct": false}, {"text": "\\(x = 1\\) only", "correct": false}, {"text": "\\(x = 1\\) and \\(x = 4\\)", "correct": false}, {"text": "\\(x = 4\\) only", "correct": true}]}, {"question": "What is the last digit (units digit) of the number \\(2^{50}\\)?", "answers": [{"text": "\\(4\\)", "correct": true}, {"text": "\\(6\\)", "correct": false}, {"text": "\\(8\\)", "correct": false}, {"text": "\\(2\\)", "correct": false}]}, {"question": "Arrange the following numbers from smallest to largest: \\(A = \\sqrt{2}\\), \\(B = 1.41\\), \\(C = 1.414\\), \\(D = 7/5\\)", "answers": [{"text": "\\(D < B < C < A\\)", "correct": true}, {"text": "\\(A < C < B < D\\)", "correct": false}, {"text": "\\(D < B < A < C\\)", "correct": false}, {"text": "\\(B < D < C < A\\)", "correct": false}]}, {"question": "If \\(x + y = 5\\) and \\(xy = 6\\), what is the value of \\(x^2 + y^2\\)?", "answers": [{"text": "\\(25\\)", "correct": false}, {"text": "\\(13\\)", "correct": true}, {"text": "\\(11\\)", "correct": false}, {"text": "\\(37\\)", "correct": false}]}, {"question": "Simplify the following expression for \\(x > 0\\): \\(\\frac{x^{1/2} \\cdot x^{2/3}}{x^{1/6}}\\)", "answers": [{"text": "\\(x^{1/3}\\)", "correct": false}, {"text": "\\(x^{5/6}\\)", "correct": false}, {"text": "\\(x\\)", "correct": true}, {"text": "\\(x^{7/6}\\)", "correct": false}]}, {"question": "For what real values of the parameter \\(m\\) is the inequality \\(x^2 + mx + 1 > 0\\) strictly true for all real numbers \\(x\\)?", "answers": [{"text": "\\(m < -2\\)", "correct": false}, {"text": "For all real \\(m\\)", "correct": false}, {"text": "\\(-2 < m < 2\\)", "correct": true}, {"text": "\\(m > 2\\)", "correct": false}]}, {"question": "Write the following expression as a single logarithm: \\(2\\log(a) - 3\\log(b) + \\frac{1}{2}\\log(c)\\)", "answers": [{"text": "\\(\\log\\left(\\frac{2a + c/2}{3b}\\right)\\)", "correct": false}, {"text": "\\(\\log\\left(a^2 - b^3 + \\sqrt{c}\\right)\\)", "correct": false}, {"text": "\\(\\log\\left(\\frac{a^2 c}{b^3}\\right)\\)", "correct": false}, {"text": "\\(\\log\\left(\\frac{a^2 \\sqrt{c}}{b^3}\\right)\\)", "correct": true}]}, {"question": "If one of the roots of the quadratic equation \\(x^2 - px + 12 = 0\\) is \\(x = 4\\), what is the value of the constant \\(p\\)?", "answers": [{"text": "\\(3\\)", "correct": false}, {"text": "\\(8\\)", "correct": false}, {"text": "\\(-7\\)", "correct": false}, {"text": "\\(7\\)", "correct": true}]}];
         
-        // --- CONFIGURAZIONE TEMPO ---
-        let timeLeft = 3600; // 60 Minuti in secondi
-        
+        let timeLeft = 3600; 
         let currentIdx = 0;
         let userEmail = "";
-        
-        // Array per salvare le risposte: null = saltata
         let userAnswers = new Array(questions.length).fill(null);
 
         function startQuiz() {
             userEmail = document.getElementById('user-email').value;
-            if(!userEmail.includes('@')) return alert("Inserisci una email valida.");
+            if(!userEmail.includes('@')) return alert("Invalid Email");
             
             document.getElementById('email-gate').style.display = 'none';
             document.getElementById('quiz-content').style.display = 'block';
             
+            initNavScroll(); // Create the squares
             renderQuestion();
             startTimer();
+        }
+
+        // --- NEW: Generate the squares ---
+        function initNavScroll() {
+            const navContainer = document.getElementById('nav-scroll');
+            navContainer.innerHTML = '';
+            
+            questions.forEach((_, idx) => {
+                const box = document.createElement('div');
+                box.className = 'nav-box';
+                box.innerText = idx + 1;
+                box.id = 'nav-box-' + idx;
+                box.onclick = () => jumpToQuestion(idx);
+                navContainer.appendChild(box);
+            });
+        }
+
+        // --- NEW: Jump Logic ---
+        function jumpToQuestion(idx) {
+            currentIdx = idx;
+            renderQuestion();
+        }
+
+        // --- NEW: Update colors of squares ---
+        function updateNavStyles() {
+            questions.forEach((_, idx) => {
+                const box = document.getElementById('nav-box-' + idx);
+                // Reset classes
+                box.className = 'nav-box';
+                
+                // Add Answered style
+                if (userAnswers[idx] !== null) {
+                    box.classList.add('answered');
+                }
+                
+                // Add Current style
+                if (idx === currentIdx) {
+                    box.classList.add('current');
+                    // Auto-scroll to keep current box in view
+                    box.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                }
+            });
         }
 
         function renderQuestion() {
             const q = questions[currentIdx];
             const container = document.getElementById('question-container');
             
-            // Aggiorna Progresso
             document.getElementById('q-progress').innerText = `Question ${currentIdx + 1} / ${questions.length}`;
             
-            // Mostra Domanda
             container.innerHTML = `<h3>${q.question}</h3>`;
             
-            // Mostra Opzioni
             q.answers.forEach(ans => {
                 const btn = document.createElement('button');
                 btn.className = 'answer-btn';
                 btn.innerHTML = ans.text; 
                 
-                // Controlla se era già stata selezionata
                 const savedAns = userAnswers[currentIdx];
                 if(savedAns && savedAns.text === ans.text) {
                     btn.classList.add('selected');
@@ -118,7 +188,6 @@
                 container.appendChild(btn);
             });
 
-            // Gestione Bottoni Avanti/Indietro
             document.getElementById('prev-btn').disabled = (currentIdx === 0);
             
             if(currentIdx === questions.length - 1) {
@@ -129,21 +198,24 @@
                 document.getElementById('submit-btn').style.display = 'none';
             }
 
-            // Ricarica Formule Matematiche
             if (window.MathJax) MathJax.typesetPromise();
+            
+            // Update the navigation bar styles every time we render
+            updateNavStyles();
         }
 
         function selectAnswer(btn, answerObj) {
-            // Deseleziona le altre
             document.querySelectorAll('.answer-btn').forEach(b => b.classList.remove('selected'));
             btn.classList.add('selected');
             
-            // Salva risposta
             userAnswers[currentIdx] = {
                 question: questions[currentIdx].question,
                 text: answerObj.text,
                 isCorrect: answerObj.correct
             };
+            
+            // Immediately update the nav bar color
+            updateNavStyles();
         }
 
         function changeQuestion(direction) {
@@ -154,15 +226,10 @@
         function startTimer() {
             const timerInt = setInterval(() => {
                 timeLeft--;
-                
-                // Formatta in MM:SS
                 const m = Math.floor(timeLeft / 60);
                 const s = timeLeft % 60;
-                
-                // Aggiunge lo zero davanti se < 10 (es. 09:05)
                 const mDisplay = m < 10 ? '0' + m : m;
                 const sDisplay = s < 10 ? '0' + s : s;
-                
                 document.getElementById('timer').innerText = `${mDisplay}:${sDisplay}`;
                 
                 if(timeLeft <= 0) {
@@ -176,30 +243,23 @@
             document.getElementById('quiz-content').style.display = 'none';
             document.getElementById('loading').style.display = 'block';
 
-            // --- CALCOLO PUNTEGGIO IMAT ---
             let finalScore = 0;
             let formattedAnswers = [];
 
             questions.forEach((q, idx) => {
                 const ans = userAnswers[idx];
-                
                 if (ans === null) {
                     formattedAnswers.push({ question: q.question, choice: "SKIPPED", isCorrect: false });
                 } else {
                     if (ans.isCorrect) { finalScore += 1.5; } 
                     else { finalScore -= 0.4; }
-                    
                     formattedAnswers.push({ question: ans.question, choice: ans.text, isCorrect: ans.isCorrect });
                 }
             });
             
             finalScore = Math.round(finalScore * 10) / 10;
 
-            const payload = {
-                email: userEmail,
-                score: finalScore,
-                answers: formattedAnswers
-            };
+            const payload = { email: userEmail, score: finalScore, answers: formattedAnswers };
 
             try {
                 await fetch(GOOGLE_URL, {
@@ -210,7 +270,7 @@
                 });
                 alert("Exam Submitted! Your IMAT Score: " + finalScore);
             } catch(e) {
-                alert("Error connecting, but your score was: " + finalScore);
+                alert("Error connecting. Score: " + finalScore);
             }
             location.reload();
         }

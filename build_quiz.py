@@ -3,11 +3,10 @@ import json
 import random
 import os
 
-# --- CONFIGURAZIONE ---
-# Legge il Segreto da GitHub (o usa un placeholder se sei sul PC locale)
+# --- CONFIGURATION ---
 GOOGLE_SCRIPT_URL = os.environ.get("MY_SECRET_URL", "URL_MANCANTE")
 
-# Carica le domande dal CSV
+# Load questions
 df = pd.read_csv('questions.csv')
 quiz_data = []
 
@@ -30,7 +29,7 @@ html_template = f"""
 <!DOCTYPE html>
 <html>
 <head>
-    <title>IMAT Simulation</title>
+    <title>IMAT Exam Simulator</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
@@ -39,18 +38,16 @@ html_template = f"""
         body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 800px; margin: 20px auto; padding: 20px; background: #f0f2f5; }}
         .card {{ background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }}
         
-        /* Barra in alto */
+        /* Header & Timer */
         .header-bar {{ display: flex; justify-content: space-between; margin-bottom: 20px; color: #555; font-weight: bold; font-size: 1.1em; }}
         #timer {{ color: #d9534f; font-family: monospace; font-size: 1.3em; }}
         
-        /* Bottoni Risposta */
+        /* Answers */
         .answer-btn {{ display: block; width: 100%; padding: 15px; margin: 10px 0; border: 2px solid #e0e0e0; border-radius: 8px; background: #fff; cursor: pointer; text-align: left; transition: 0.2s; font-size: 1rem; }}
         .answer-btn:hover {{ border-color: #aaa; background: #f9f9f9; }}
-        
-        /* Stato Selezionato */
         .selected {{ border-color: #007bff; background-color: #e7f1ff; color: #0056b3; font-weight: 500; }}
         
-        /* Navigazione */
+        /* Main Navigation (Prev/Next) */
         .nav-container {{ display: flex; justify-content: space-between; margin-top: 30px; }}
         .nav-btn {{ padding: 10px 25px; border: none; border-radius: 5px; cursor: pointer; font-size: 1rem; }}
         #prev-btn {{ background: #6c757d; color: white; }}
@@ -58,6 +55,40 @@ html_template = f"""
         #next-btn {{ background: #007bff; color: white; }}
         #submit-btn {{ background: #28a745; color: white; display: none; }}
         
+        /* --- NEW: Scrollable Question Bar --- */
+        .nav-scroll {{ 
+            display: flex; 
+            overflow-x: auto; 
+            gap: 8px; 
+            padding: 15px 5px; 
+            margin-top: 20px; 
+            border-top: 1px solid #eee; 
+            scrollbar-width: thin; /* Firefox */
+        }}
+        /* Scrollbar styling for Chrome/Safari */
+        .nav-scroll::-webkit-scrollbar {{ height: 8px; }}
+        .nav-scroll::-webkit-scrollbar-thumb {{ background: #ccc; border-radius: 4px; }}
+        
+        .nav-box {{ 
+            flex: 0 0 40px; 
+            height: 40px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            background: #f8f9fa; 
+            border: 1px solid #ddd; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-size: 0.9em; 
+            user-select: none;
+            transition: all 0.2s;
+        }}
+        
+        /* States for the squares */
+        .nav-box.answered {{ background-color: #007bff; color: white; border-color: #0056b3; }}
+        .nav-box.current {{ border: 2px solid #ffc107; box-shadow: 0 0 5px rgba(255, 193, 7, 0.5); transform: scale(1.1); font-weight: bold; }}
+        .nav-box:hover {{ background-color: #e2e6ea; }}
+
         /* Loading & Input */
         #loading {{ display: none; text-align: center; color: #0056b3; }}
         input[type="email"] {{ width: 100%; padding: 12px; margin: 15px 0; border: 1px solid #ddd; border-radius: 4px; }}
@@ -69,8 +100,8 @@ html_template = f"""
     <div class="card">
         <div id="email-gate">
             <h2>IMAT Test Simulator</h2>
-            <p><strong>Regole:</strong> +1.5 Corretta, -0.4 Errata, 0 Saltata.</p>
-            <p><strong>Tempo:</strong> 60 Minuti.</p>
+            <p><strong>Rules:</strong> +1.5 Correct, -0.4 Wrong, 0 Skipped.</p>
+            <p><strong>Time:</strong> 60 Minutes.</p>
             <input type="email" id="user-email" placeholder="student@example.com">
             <button id="start-btn" onclick="startQuiz()">Start Exam</button>
         </div>
@@ -88,11 +119,14 @@ html_template = f"""
                 <button id="next-btn" class="nav-btn" onclick="changeQuestion(1)">Next</button>
                 <button id="submit-btn" class="nav-btn" onclick="finishQuiz()">Submit Exam</button>
             </div>
+
+            <div id="nav-scroll" class="nav-scroll">
+                </div>
         </div>
 
         <div id="loading">
-            <h3>Invio risultati in corso...</h3>
-            <p>Attendi mentre calcoliamo il punteggio IMAT.</p>
+            <h3>Submitting results...</h3>
+            <p>Calculating IMAT Score...</p>
         </div>
     </div>
 
@@ -100,43 +134,78 @@ html_template = f"""
         const GOOGLE_URL = "{GOOGLE_SCRIPT_URL}";
         const questions = {quiz_json};
         
-        // --- CONFIGURAZIONE TEMPO ---
-        let timeLeft = 3600; // 60 Minuti in secondi
-        
+        let timeLeft = 3600; 
         let currentIdx = 0;
         let userEmail = "";
-        
-        // Array per salvare le risposte: null = saltata
         let userAnswers = new Array(questions.length).fill(null);
 
         function startQuiz() {{
             userEmail = document.getElementById('user-email').value;
-            if(!userEmail.includes('@')) return alert("Inserisci una email valida.");
+            if(!userEmail.includes('@')) return alert("Invalid Email");
             
             document.getElementById('email-gate').style.display = 'none';
             document.getElementById('quiz-content').style.display = 'block';
             
+            initNavScroll(); // Create the squares
             renderQuestion();
             startTimer();
+        }}
+
+        // --- NEW: Generate the squares ---
+        function initNavScroll() {{
+            const navContainer = document.getElementById('nav-scroll');
+            navContainer.innerHTML = '';
+            
+            questions.forEach((_, idx) => {{
+                const box = document.createElement('div');
+                box.className = 'nav-box';
+                box.innerText = idx + 1;
+                box.id = 'nav-box-' + idx;
+                box.onclick = () => jumpToQuestion(idx);
+                navContainer.appendChild(box);
+            }});
+        }}
+
+        // --- NEW: Jump Logic ---
+        function jumpToQuestion(idx) {{
+            currentIdx = idx;
+            renderQuestion();
+        }}
+
+        // --- NEW: Update colors of squares ---
+        function updateNavStyles() {{
+            questions.forEach((_, idx) => {{
+                const box = document.getElementById('nav-box-' + idx);
+                // Reset classes
+                box.className = 'nav-box';
+                
+                // Add Answered style
+                if (userAnswers[idx] !== null) {{
+                    box.classList.add('answered');
+                }}
+                
+                // Add Current style
+                if (idx === currentIdx) {{
+                    box.classList.add('current');
+                    // Auto-scroll to keep current box in view
+                    box.scrollIntoView({{ behavior: 'smooth', block: 'nearest', inline: 'center' }});
+                }}
+            }});
         }}
 
         function renderQuestion() {{
             const q = questions[currentIdx];
             const container = document.getElementById('question-container');
             
-            // Aggiorna Progresso
             document.getElementById('q-progress').innerText = `Question ${{currentIdx + 1}} / ${{questions.length}}`;
             
-            // Mostra Domanda
             container.innerHTML = `<h3>${{q.question}}</h3>`;
             
-            // Mostra Opzioni
             q.answers.forEach(ans => {{
                 const btn = document.createElement('button');
                 btn.className = 'answer-btn';
                 btn.innerHTML = ans.text; 
                 
-                // Controlla se era già stata selezionata
                 const savedAns = userAnswers[currentIdx];
                 if(savedAns && savedAns.text === ans.text) {{
                     btn.classList.add('selected');
@@ -146,7 +215,6 @@ html_template = f"""
                 container.appendChild(btn);
             }});
 
-            // Gestione Bottoni Avanti/Indietro
             document.getElementById('prev-btn').disabled = (currentIdx === 0);
             
             if(currentIdx === questions.length - 1) {{
@@ -157,21 +225,24 @@ html_template = f"""
                 document.getElementById('submit-btn').style.display = 'none';
             }}
 
-            // Ricarica Formule Matematiche
             if (window.MathJax) MathJax.typesetPromise();
+            
+            // Update the navigation bar styles every time we render
+            updateNavStyles();
         }}
 
         function selectAnswer(btn, answerObj) {{
-            // Deseleziona le altre
             document.querySelectorAll('.answer-btn').forEach(b => b.classList.remove('selected'));
             btn.classList.add('selected');
             
-            // Salva risposta
             userAnswers[currentIdx] = {{
                 question: questions[currentIdx].question,
                 text: answerObj.text,
                 isCorrect: answerObj.correct
             }};
+            
+            // Immediately update the nav bar color
+            updateNavStyles();
         }}
 
         function changeQuestion(direction) {{
@@ -182,15 +253,10 @@ html_template = f"""
         function startTimer() {{
             const timerInt = setInterval(() => {{
                 timeLeft--;
-                
-                // Formatta in MM:SS
                 const m = Math.floor(timeLeft / 60);
                 const s = timeLeft % 60;
-                
-                // Aggiunge lo zero davanti se < 10 (es. 09:05)
                 const mDisplay = m < 10 ? '0' + m : m;
                 const sDisplay = s < 10 ? '0' + s : s;
-                
                 document.getElementById('timer').innerText = `${{mDisplay}}:${{sDisplay}}`;
                 
                 if(timeLeft <= 0) {{
@@ -204,30 +270,23 @@ html_template = f"""
             document.getElementById('quiz-content').style.display = 'none';
             document.getElementById('loading').style.display = 'block';
 
-            // --- CALCOLO PUNTEGGIO IMAT ---
             let finalScore = 0;
             let formattedAnswers = [];
 
             questions.forEach((q, idx) => {{
                 const ans = userAnswers[idx];
-                
                 if (ans === null) {{
                     formattedAnswers.push({{ question: q.question, choice: "SKIPPED", isCorrect: false }});
                 }} else {{
                     if (ans.isCorrect) {{ finalScore += 1.5; }} 
                     else {{ finalScore -= 0.4; }}
-                    
                     formattedAnswers.push({{ question: ans.question, choice: ans.text, isCorrect: ans.isCorrect }});
                 }}
             }});
             
             finalScore = Math.round(finalScore * 10) / 10;
 
-            const payload = {{
-                email: userEmail,
-                score: finalScore,
-                answers: formattedAnswers
-            }};
+            const payload = {{ email: userEmail, score: finalScore, answers: formattedAnswers }};
 
             try {{
                 await fetch(GOOGLE_URL, {{
@@ -238,7 +297,7 @@ html_template = f"""
                 }});
                 alert("Exam Submitted! Your IMAT Score: " + finalScore);
             }} catch(e) {{
-                alert("Error connecting, but your score was: " + finalScore);
+                alert("Error connecting. Score: " + finalScore);
             }}
             location.reload();
         }}
@@ -249,4 +308,4 @@ html_template = f"""
 
 with open("index.html", "w", encoding="utf-8") as f:
     f.write(html_template)
-print("IMAT Quiz generated successfully!")
+print("Updated with Scrollable Nav Bar!")
