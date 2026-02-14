@@ -5,18 +5,14 @@ import os
 import glob
 
 # --- CONFIGURAZIONE ---
-# Legge la variabile d'ambiente o usa una stringa vuota per test locali
 GOOGLE_SCRIPT_URL = os.environ.get("MY_SECRET_URL", "URL_MANCANTE")
 
 def process_csv(filename):
     try:
-        # Legge il CSV. Assicura che sia letto come stringa per evitare errori di formato
         df = pd.read_csv(filename)
         if df.empty: return []
-        
         data = []
         for _, row in df.iterrows():
-            # Mescola le risposte
             answers = [
                 {"text": str(row['correct']), "correct": True},
                 {"text": str(row['wrong1']), "correct": False},
@@ -24,43 +20,34 @@ def process_csv(filename):
                 {"text": str(row['wrong3']), "correct": False}
             ]
             random.shuffle(answers)
-            
             data.append({
                 "question": str(row['question']),
                 "answers": answers
             })
         return data
     except Exception as e:
-        print(f"Errore leggendo {filename}: {e}")
+        print(f"Errore {filename}: {e}")
         return []
 
 # --- SCANSIONE FILE ---
 csv_files = glob.glob("*.csv")
 quiz_library = {}
 
-print(f"Trovati {len(csv_files)} file CSV.")
-
 for filename in csv_files:
-    # Esempio: "math_algebra.csv" -> "math_algebra"
     clean_name = filename.replace('.csv', '')
     content = process_csv(filename)
     if content:
         quiz_library[clean_name] = content
-        print(f" - Caricato: {clean_name} ({len(content)} domande)")
 
-# Convertiamo in JSON (ensure_ascii=False mantiene i caratteri speciali corretti)
 json_output = json.dumps(quiz_library, ensure_ascii=False)
 
-# --- TEMPLATE HTML (SENZA F-STRING PER IL JSON) ---
-# Usiamo una stringa normale e dei PLACEHOLDER per evitare conflitti di sintassi
 html_template = """
 <!DOCTYPE html>
 <html lang="it">
 <head>
-    <title>Portale Verifiche</title>
+    <title>Portale Studenti</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     
     <style>
@@ -68,7 +55,6 @@ html_template = """
         .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 20px; }
         h1, h2 { color: #2c3e50; text-align: center; }
         
-        /* LOGIN */
         input[type="email"] { width: 100%; padding: 15px; margin: 15px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
         .btn-primary { width: 100%; padding: 15px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 1.1rem; }
         .btn-primary:disabled { background: #ccc; cursor: wait; }
@@ -91,7 +77,10 @@ html_template = """
         .quiz-card:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
         .type-math { border-left-color: #007bff; }
         .type-physics { border-left-color: #e83e8c; }
-        .quiz-card.completed { border-left-color: #28a745; background-color: #f0fff4; opacity: 0.8; cursor: default; }
+        .quiz-card.completed { border-left-color: #28a745; background-color: #f0fff4; opacity: 0.9; cursor: default; }
+        
+        .card-content { display: flex; flex-direction: column; }
+        .quiz-score { font-size: 0.9em; color: #28a745; font-weight: bold; margin-top: 5px; }
         
         .status-badge { font-size: 0.8rem; padding: 4px 8px; border-radius: 4px; font-weight: bold; }
         .badge-todo { background: #e7f1ff; color: #007bff; }
@@ -150,7 +139,6 @@ html_template = """
     <div id="loading" class="card"><h3>Salvataggio in corso...</h3></div>
 
     <script>
-        // INIEZIONE DATI SICURA (Placeholders verranno sostituiti da Python)
         const LIBRARY = __JSON_DATA__; 
         const GOOGLE_URL = "__GOOGLE_URL__";
 
@@ -171,12 +159,11 @@ html_template = """
             btn.innerText = "Controllo...";
             
             try {
-                // Chiamata al Database Google Sheet
                 const response = await fetch(GOOGLE_URL + "?email=" + encodeURIComponent(email));
                 const result = await response.json();
 
                 if (!result.allowed) {
-                    showError("Email non presente nel database (Whitelist).");
+                    showError("Email non presente nel database.");
                     btn.disabled = false;
                     btn.innerText = "Entra";
                     return;
@@ -185,27 +172,29 @@ html_template = """
                 currentUser = email;
                 document.getElementById('welcome-msg').innerText = "Studente: " + email;
                 
-                // Genera la dashboard basandosi sui completati
-                renderDashboard(result.completed); // result.completed deve essere una lista di ID (es: ["math_algebra"])
+                // result.completed ora contiene oggetti: { "math_algebra": {score: 10, maxScore: 15}, ... }
+                renderDashboard(result.completed); 
 
                 document.getElementById('view-login').style.display = 'none';
                 document.getElementById('view-dashboard').style.display = 'block';
 
             } catch (e) {
                 console.error(e);
-                showError("Errore di connessione o URL Script errato.");
+                showError("Errore di connessione.");
                 btn.disabled = false;
                 btn.innerText = "Entra";
             }
         }
 
-        function renderDashboard(completedList) {
+        function renderDashboard(completedObj) {
             const mathList = document.getElementById('list-math');
             const physList = document.getElementById('list-physics');
             mathList.innerHTML = "";
             physList.innerHTML = "";
+            
+            // Se completedObj è null (es. studente nuovo), inizializzalo vuoto
+            if (!completedObj || Array.isArray(completedObj)) completedObj = {}; 
 
-            // Ordina i quiz alfabeticamente
             const quizIds = Object.keys(LIBRARY).sort();
 
             if(quizIds.length === 0) {
@@ -214,19 +203,30 @@ html_template = """
             }
 
             quizIds.forEach(quizId => {
-                // quizId es: "math_algebra"
                 const parts = quizId.split('_');
-                const subject = parts[0]; // "math" o "physics"
-                const topic = parts.slice(1).join(' ').toUpperCase(); // "ALGEBRA"
+                const subject = parts[0]; 
+                const topic = parts.slice(1).join(' ').toUpperCase(); 
                 
-                // Controlla se è nella lista dei completati
-                const isDone = completedList && completedList.includes(quizId);
+                // Controlliamo se esiste la chiave nell'oggetto
+                const resultData = completedObj[quizId]; 
+                const isDone = !!resultData; // true se esiste, false se undefined
                 
                 const card = document.createElement('div');
                 card.className = `quiz-card type-${subject} ${isDone ? 'completed' : ''}`;
                 
+                // Preparazione testo Voto
+                let scoreText = "";
+                if (isDone) {
+                    const s = resultData.score !== undefined ? resultData.score : "?";
+                    const m = resultData.maxScore ? resultData.maxScore : "?";
+                    scoreText = `<div class="quiz-score">Voto: ${s} / ${m}</div>`;
+                }
+
                 card.innerHTML = `
-                    <div><strong>${topic}</strong></div>
+                    <div class="card-content">
+                        <strong>${topic}</strong>
+                        ${scoreText}
+                    </div>
                     <div class="status-badge ${isDone ? 'badge-done' : 'badge-todo'}">
                         ${isDone ? 'COMPLETATO' : 'AVVIA'}
                     </div>
@@ -235,49 +235,36 @@ html_template = """
                 if (!isDone) {
                     card.onclick = () => startQuiz(quizId);
                 } else {
-                    card.title = "Hai già completato questa verifica";
+                    card.title = "Verifica già completata";
                 }
 
                 if (subject === 'math') mathList.appendChild(card);
                 else if (subject === 'physics') physList.appendChild(card);
-                else {
-                    // Fallback per file con altri nomi (es. chimica_test.csv)
-                    // Li mettiamo in Matematica per default o creiamo altra logica
-                    mathList.appendChild(card); 
-                }
+                else mathList.appendChild(card); 
             });
         }
 
+        // --- RESTO DELLE FUNZIONI IDENTICHE A PRIMA ---
         function startQuiz(quizId) {
             currentQuizId = quizId;
             questions = LIBRARY[quizId];
             answers = new Array(questions.length).fill(null);
             currentIdx = 0;
             timeLeft = 3600;
-
             document.getElementById('view-dashboard').style.display = 'none';
             document.getElementById('view-quiz').style.display = 'block';
-            
             const parts = quizId.split('_');
             const prettyTitle = parts[0].toUpperCase() + ": " + parts.slice(1).join(' ').toUpperCase();
             document.getElementById('quiz-title').innerText = prettyTitle;
-            
             setupNavScroll();
             renderQuestion();
             startTimer();
         }
-
-        function showError(msg) { 
-            const el = document.getElementById('login-error'); 
-            el.innerText = msg; 
-            el.style.display = 'block'; 
-        }
-
+        function showError(msg) { const el = document.getElementById('login-error'); el.innerText = msg; el.style.display = 'block'; }
         function renderQuestion() {
             const q = questions[currentIdx];
             const container = document.getElementById('question-container');
             container.innerHTML = `<h3>Domanda ${currentIdx + 1}</h3><p>${q.question}</p>`;
-            
             q.answers.forEach(ans => {
                 const btn = document.createElement('button');
                 btn.className = 'answer-btn';
@@ -287,7 +274,6 @@ html_template = """
                 btn.onclick = () => selectAnswer(btn, ans);
                 container.appendChild(btn);
             });
-
             document.getElementById('prev-btn').disabled = (currentIdx === 0);
             if(currentIdx === questions.length - 1) {
                 document.getElementById('next-btn').style.display = 'none';
@@ -299,38 +285,15 @@ html_template = """
             updateNavScroll();
             if(window.MathJax) MathJax.typesetPromise();
         }
-
         function selectAnswer(btn, ansObj) {
             document.querySelectorAll('.answer-btn').forEach(b => b.classList.remove('selected'));
             btn.classList.add('selected');
-            answers[currentIdx] = { 
-                question: questions[currentIdx].question, 
-                choice: ansObj.text, 
-                isCorrect: ansObj.correct 
-            };
+            answers[currentIdx] = { question: questions[currentIdx].question, choice: ansObj.text, isCorrect: ansObj.correct };
             updateNavScroll();
         }
-
         function move(dir) { currentIdx += dir; renderQuestion(); }
-        
-        function setupNavScroll() { 
-            const box = document.getElementById('nav-scroll'); box.innerHTML = ""; 
-            questions.forEach((_, i) => { 
-                const d = document.createElement('div'); d.className = 'nav-box'; d.innerText = i + 1; d.id = `nav-${i}`; 
-                d.onclick = () => { currentIdx = i; renderQuestion(); }; 
-                box.appendChild(d); 
-            }); 
-        }
-        
-        function updateNavScroll() { 
-            questions.forEach((_, i) => { 
-                const el = document.getElementById(`nav-${i}`); el.className = 'nav-box'; 
-                if(answers[i]) el.classList.add('answered'); 
-                if(i === currentIdx) el.classList.add('current'); 
-            }); 
-            document.getElementById(`nav-${currentIdx}`).scrollIntoView({ behavior: 'smooth', inline: 'center' }); 
-        }
-
+        function setupNavScroll() { const box = document.getElementById('nav-scroll'); box.innerHTML = ""; questions.forEach((_, i) => { const d = document.createElement('div'); d.className = 'nav-box'; d.innerText = i + 1; d.id = `nav-${i}`; d.onclick = () => { currentIdx = i; renderQuestion(); }; box.appendChild(d); }); }
+        function updateNavScroll() { questions.forEach((_, i) => { const el = document.getElementById(`nav-${i}`); el.className = 'nav-box'; if(answers[i]) el.classList.add('answered'); if(i === currentIdx) el.classList.add('current'); }); document.getElementById(`nav-${currentIdx}`).scrollIntoView({ behavior: 'smooth', inline: 'center' }); }
         function startTimer() {
             clearInterval(timerInterval);
             timerInterval = setInterval(() => {
@@ -341,16 +304,12 @@ html_template = """
                 if(timeLeft <= 0) { clearInterval(timerInterval); submitQuiz(); }
             }, 1000);
         }
-
         async function submitQuiz() {
             clearInterval(timerInterval);
             document.getElementById('view-quiz').style.display = 'none';
             document.getElementById('loading').style.display = 'block';
-
             let score = 0;
-            // Calcolo punteggio massimo (1.5 punti per domanda)
             let maxScore = questions.length * 1.5; 
-
             let formattedAnswers = [];
             questions.forEach((q, i) => {
                 const a = answers[i];
@@ -361,23 +320,8 @@ html_template = """
                 }
             });
             score = Math.round(score * 10) / 10;
-
-            const payload = { 
-                email: currentUser, 
-                subject: currentQuizId, 
-                score: score, 
-                maxScore: maxScore,
-                answers: formattedAnswers 
-            };
-
-            try { 
-                await fetch(GOOGLE_URL, { 
-                    method: 'POST', 
-                    mode: 'no-cors', 
-                    body: JSON.stringify(payload) 
-                }); 
-            } catch(e) {}
-            
+            const payload = { email: currentUser, subject: currentQuizId, score: score, maxScore: maxScore, answers: formattedAnswers };
+            try { await fetch(GOOGLE_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) }); } catch(e) {}
             alert("Verifica Completata!\\n\\nPunteggio: " + score + " / " + maxScore);
             location.reload();
         }
@@ -386,14 +330,8 @@ html_template = """
 </html>
 """
 
-# --- INIEZIONE SICURA DEI DATI ---
-# Sostituiamo i placeholder con i dati reali.
-# Questo metodo è sicuro perché non interpreta i caratteri all'interno del JSON.
 final_html = html_template.replace("__JSON_DATA__", json_output)
 final_html = final_html.replace("__GOOGLE_URL__", GOOGLE_SCRIPT_URL)
 
-# Scrittura del file
 with open("index.html", "w", encoding="utf-8") as f:
     f.write(final_html)
-
-print("Sito generato con successo! (Polyfill rimosso, JSON fixato)")
