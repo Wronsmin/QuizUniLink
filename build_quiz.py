@@ -5,7 +5,7 @@ import os
 
 # --- CONFIGURAZIONE ---
 # Legge il Segreto da GitHub (o usa un placeholder se sei sul PC locale)
-GOOGLE_SCRIPT_URL = os.environ.get("GOOGLE_SCRIPT_URL", "URL_MANCANTE")
+GOOGLE_SCRIPT_URL = os.environ.get("MY_SECRET_URL", "URL_MANCANTE")
 
 # Carica le domande dal CSV
 df = pd.read_csv('questions.csv')
