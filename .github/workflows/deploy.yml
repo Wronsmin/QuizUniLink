@@ -18,10 +18,14 @@ jobs:
         run: pip install pandas
 
       - name: Run Generator
+        # QUI passiamo il segreto allo script Python
+        env:
+          # MY_SECRET_URL: ${{ secrets.GOOGLE_SCRIPT_URL }}
+          MY_SECRET_URL: "PROVA_DI_COLLEGAMENTO"
         run: python build_quiz.py
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./ # This deploys the index.html created by Python
+          publish_dir: ./
