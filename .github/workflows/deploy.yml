@@ -20,8 +20,7 @@ jobs:
       - name: Run Generator
         # QUI passiamo il segreto allo script Python
         env:
-          # MY_SECRET_URL: ${{ secrets.GOOGLE_SCRIPT_URL }}
-          MY_SECRET_URL: "PROVA_DI_COLLEGAMENTO"
+          MY_SECRET_URL: ${{ secrets.GOOGLE_SCRIPT_URL }}
         run: python build_quiz.py
 
       - name: Deploy to GitHub Pages
